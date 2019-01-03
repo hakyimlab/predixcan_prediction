@@ -329,3 +329,52 @@ class BGENDosageTest(unittest.TestCase):
 
         assert len(no_cache_results) == len(cache_results)
         assert cache_time * 3.0 <= no_cache_time, (cache_time, no_cache_time)
+
+    def test_get_iterator_filter_by_rsid(self):
+        # Prepare
+        bgen_dosage = BGENDosage(get_repository_path('set00/chr2impv1.bgen'))
+
+        # Run
+        all_items = list(bgen_dosage.items(n_rows_cached=10, include_rsid=['rs2000000', 'rs2000002', 'rs2000149']))
+        assert len(all_items) == 3
+
+        all_rsids = [i.rsid for i in all_items]
+        assert 'rs2000000' in all_rsids
+        assert 'rs2000002' in all_rsids
+        assert 'rs2000149' in all_rsids
+
+        # snp 1
+        rsid = 'rs2000000'
+        rsid_idx = all_rsids.index(rsid)
+        assert all_items[rsid_idx].chr == 2
+        assert all_items[rsid_idx].position == 100
+        assert all_items[rsid_idx].allele0 == 'A'
+        assert all_items[rsid_idx].allele1 == 'G'
+        assert all_items[rsid_idx].rsid == rsid
+        assert all_items[rsid_idx].dosages.shape == (300,)
+        assert truncate(all_items[rsid_idx].dosages[0]) == truncate(np.dot([0.94401, 0.02976, 0.02623], [0, 1, 2])) == 0.0822
+        assert truncate(all_items[rsid_idx].dosages[2]) == truncate(np.dot([0.00658, 0.92760, 0.06582], [0, 1, 2])) == 1.0592
+
+        # snp middle
+        rsid = 'rs2000002'
+        rsid_idx = all_rsids.index(rsid)
+        assert all_items[rsid_idx].chr == 2
+        assert all_items[rsid_idx].position == 215
+        assert all_items[rsid_idx].allele0 == 'A'
+        assert all_items[rsid_idx].allele1 == 'T'
+        assert all_items[rsid_idx].rsid == rsid
+        assert all_items[rsid_idx].dosages.shape == (300,)
+        assert truncate(all_items[rsid_idx].dosages[0]) == truncate(np.dot([0.91804, 0.01235, 0.06961], [0, 1, 2])), truncate(all_items[rsid_idx].dosages[0])
+        assert truncate(all_items[rsid_idx].dosages[5]) == truncate(np.dot([0.02761, 0.92139, 0.05101], [0, 1, 2])), truncate(all_items[rsid_idx].dosages[5])
+
+        # snp last
+        rsid = 'rs2000149'
+        rsid_idx = all_rsids.index(rsid)
+        assert all_items[rsid_idx].chr == 2
+        assert all_items[rsid_idx].position == 11226
+        assert all_items[rsid_idx].allele0 == 'G'
+        assert all_items[rsid_idx].allele1 == 'T'
+        assert all_items[rsid_idx].rsid == rsid
+        assert all_items[rsid_idx].dosages.shape == (300,)
+        assert truncate(all_items[rsid_idx].dosages[1]) == truncate(np.dot([0.01371, 0.09542, 0.89091], [0, 1, 2])) == 1.8772, truncate(all_items[rsid_idx].dosages[1])
+        assert truncate(all_items[rsid_idx].dosages[2]) == truncate(np.dot([0.07391, 0.09607, 0.83011], [0, 1, 2])) == 1.7562, truncate(all_items[rsid_idx].dosages[2])

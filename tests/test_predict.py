@@ -391,13 +391,13 @@ class PrediXcanTests(unittest.TestCase):
         )
 
         options = [
-            'python',
+            self.python_path,
             self.predixcan_path,
-            '--predict',
-            '--hdf5s', get_full_path('tests/data/dosages/'),
-            '--hdf5s-prefix', 'dosages_chr',
-            '--weights', model_path,
-            '--pred_exp', output_file,
+            '--bgens-dir', get_full_path('tests/data/set00/'),
+            '--bgens-prefix', 'chr',
+            '--bgens-sample-file', get_full_path('tests/data/set00/impv1.sample'),
+            '--weights-file', model_path,
+            '--output-file', output_file,
         ]
 
         return_code = call(options)
@@ -413,8 +413,8 @@ class PrediXcanTests(unittest.TestCase):
             assert all(samples[:].astype(str) == np.array([str(x) for x in range(1, 300 + 1)]))
 
             assert 'genes' in hdf5_file.keys()
-            genes = hdf5_file['genes']
-            assert genes.shape == (22 + 12,)
+            assert hdf5_file['genes'].shape == (22 + 12,)
+            genes = [x.decode() for x in hdf5_file['genes']]
             assert genes[0] == 'gene000'
             assert genes[1] == 'gene001'
             assert genes[20] == 'gene020'
@@ -449,8 +449,8 @@ class PrediXcanTests(unittest.TestCase):
 
             assert truncate(preds[1, 1]) == truncate(
                 0.5455 * (2 - np.dot([0.91510, 0.06826, 0.01669], [0, 1, 2])) +
-                0.5455 * (np.dot([0.70937, 0.04886, 0.24177], [0, 1, 2]))
-            ) == 1.3259, preds[1, 1]
+                0.5455 * (np.dot([0.70937, 0.04896, 0.24177], [0, 1, 2]))
+            ) == 1.3260, preds[1, 1]
 
             # gene09
             assert truncate(preds[9, 0]) == truncate(
@@ -460,8 +460,8 @@ class PrediXcanTests(unittest.TestCase):
 
             assert truncate(preds[9, 298]) == truncate(
                 0.9876 * (2 - np.dot([0.71102, 0.00968, 0.27929], [0, 1, 2])) +
-                0.9876 * (2 - np.dot([0.08631, 0.77285, 0.14089], [0, 1, 2]))
-            ) == 2.3476, preds[9, 298]
+                0.9876 * (2 - np.dot([0.08631, 0.77275, 0.14089], [0, 1, 2]))
+            ) == 2.3477, preds[9, 298]
 
             # gene10
             assert truncate(preds[10, 0]) == truncate(
@@ -477,8 +477,8 @@ class PrediXcanTests(unittest.TestCase):
             # gene11
             assert truncate(preds[11, 0]) == truncate(
                 0.2754 * (np.dot([0.83211, 0.12816, 0.03970], [0, 1, 2])) +
-                0.2754 * (np.dot([0.96441, 0.02567, 0.00990], [0, 1, 2]))
-            ) == 0.0696, preds[11, 0]
+                0.2754 * (np.dot([0.96441, 0.02577, 0.00990], [0, 1, 2]))
+            ) == 0.0697, preds[11, 0]
 
             assert truncate(preds[11, 299]) == truncate(
                 0.2754 * (np.dot([0.04018, 0.84357, 0.11625], [0, 1, 2])) +

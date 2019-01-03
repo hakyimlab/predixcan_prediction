@@ -36,6 +36,16 @@ class WeightsDB:
                 yield ret
 
 
+class UniqueRsid:
+    def __init__(self, beta_file):
+        self.db = WeightsDB(beta_file)
+
+    def __call__(self):
+        print("{} Getting unique rsids...".format(datetime.datetime.now()))
+        res = [x[0] for x in self.db.query("SELECT distinct rsid FROM weights")]
+        return res
+
+
 class GetApplicationsOf:
     def __init__(self, beta_file, preload_weights=True):
         self.db = WeightsDB(beta_file)
@@ -135,13 +145,13 @@ class TranscriptionMatrix:
             sys.exit(1)
 
 
-def get_all_dosages_from_bgen(bgen_dir, bgen_prefix, n_rows_cached=1000):
+def get_all_dosages_from_bgen(bgen_dir, bgen_prefix, rsids, n_rows_cached=1000):
     for chrfile in [x for x in sorted(os.listdir(bgen_dir)) if x.startswith(bgen_prefix) and x.endswith(".bgen")]:
         print("{} Processing {}".format(datetime.datetime.now(), chrfile))
 
         bgen_dosage = BGENDosage(os.path.join(bgen_dir, chrfile))
 
-        for variant_info in bgen_dosage.items(n_rows_cached=n_rows_cached):
+        for variant_info in bgen_dosage.items(n_rows_cached=n_rows_cached, include_rsid=rsids):
             # arr = line.decode('utf-8').strip().split()
             # rsid = arr[1]
             # refallele = arr[4]
@@ -166,7 +176,8 @@ if __name__ == '__main__':
     get_applications_of = GetApplicationsOf(args.weights_file, True)
     transcription_matrix = TranscriptionMatrix(args.weights_file, args.bgens_sample_file, args.output_file)
 
-    all_dosages = get_all_dosages_from_bgen(args.bgens_dir, args.bgens_prefix, n_rows_cached=args.bgens_n_cache)
+    unique_rsids = UniqueRsid(args.weights_file)()
+    all_dosages = get_all_dosages_from_bgen(args.bgens_dir, args.bgens_prefix, unique_rsids, n_rows_cached=args.bgens_n_cache)
 
     for rsid, allele, dosage_row in tqdm(all_dosages, disable=args.no_progress_bar):
         for gene, weight, ref_allele in get_applications_of(rsid):
