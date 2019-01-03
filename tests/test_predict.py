@@ -46,7 +46,8 @@ def _create_model(model_name, values):
 
 class PrediXcanTests(unittest.TestCase):
     def setUp(self):
-        self.predixcan_path = get_full_path(os.path.join('Software', 'PrediXcan.py'))
+        self.predixcan_path = get_full_path(os.path.join('.', 'predict.py'))
+        self.python_path = '/home/miltondp/software/miniconda3/envs/predixcan_prediction/bin/python'
 
     def test_alleles_in_bgen_order_gene(self):
         # Prepare
@@ -59,13 +60,13 @@ class PrediXcanTests(unittest.TestCase):
         ])
 
         options = [
-            'python',
+            self.python_path,
             self.predixcan_path,
-            '--predict',
-            '--hdf5s', get_full_path('tests/data/dosages/'),
-            '--hdf5s-prefix', 'dosages_chr1_',
-            '--weights', model_path,
-            '--pred_exp', output_file,
+            '--bgens-dir', get_full_path('tests/data/set00/'),
+            '--bgens-prefix', 'chr',
+            '--bgens-sample-file', get_full_path('tests/data/set00/impv1.sample'),
+            '--weights-file', model_path,
+            '--output-file', output_file,
         ]
 
         return_code = call(options)
@@ -95,13 +96,13 @@ class PrediXcanTests(unittest.TestCase):
         ])
 
         options = [
-            'python',
+            self.python_path,
             self.predixcan_path,
-            '--predict',
-            '--hdf5s', get_full_path('tests/data/dosages/'),
-            '--hdf5s-prefix', 'dosages_chr1_',
-            '--weights', model_path,
-            '--pred_exp', output_file,
+            '--bgens-dir', get_full_path('tests/data/set00/'),
+            '--bgens-prefix', 'chr',
+            '--bgens-sample-file', get_full_path('tests/data/set00/impv1.sample'),
+            '--weights-file', model_path,
+            '--output-file', output_file,
         ]
 
         return_code = call(options)
@@ -130,13 +131,13 @@ class PrediXcanTests(unittest.TestCase):
         ])
 
         options = [
-            'python',
+            self.python_path,
             self.predixcan_path,
-            '--predict',
-            '--hdf5s', get_full_path('tests/data/dosages/'),
-            '--hdf5s-prefix', 'dosages_chr1_',
-            '--weights', model_path,
-            '--pred_exp', output_file,
+            '--bgens-dir', get_full_path('tests/data/set00/'),
+            '--bgens-prefix', 'chr',
+            '--bgens-sample-file', get_full_path('tests/data/set00/impv1.sample'),
+            '--weights-file', model_path,
+            '--output-file', output_file,
         ]
 
         return_code = call(options)
@@ -147,8 +148,8 @@ class PrediXcanTests(unittest.TestCase):
             assert len(hdf5_file.keys()) == 3
 
             assert 'genes' in hdf5_file.keys()
-            genes = hdf5_file['genes']
-            assert genes.shape == (1,)
+            assert hdf5_file['genes'].shape == (1,)
+            genes = [x.decode() for x in hdf5_file['genes']]
             assert genes[0] == 'gene00'
 
             assert 'pred_expr' in hdf5_file.keys()
@@ -157,12 +158,12 @@ class PrediXcanTests(unittest.TestCase):
             assert preds.chunks == (1, 300)
 
             assert truncate(preds[0, 0]) == truncate(
-                0.3712 * (2 - np.dot([0.74909, 0.01333, 0.23758], [0, 1, 2])) +
+                0.3712 * (2 - np.dot([0.74909, 0.01339, 0.23758], [0, 1, 2])) +
                 0.0807 * (np.dot([0.75232, 0.11729, 0.13050], [0, 1, 2]))
             ), preds[0, 0]
 
             assert truncate(preds[0, 299]) == truncate(
-                0.3712 * (2 - np.dot([0.05763, 0.77328, 0.16910], [0, 1, 2])) +
+                0.3712 * (2 - np.dot([0.05763, 0.77338, 0.16910], [0, 1, 2])) +
                 0.0807 * (np.dot([0.00937, 0.13421, 0.85658], [0, 1, 2]))
             ), preds[0, 299]
 
@@ -179,13 +180,13 @@ class PrediXcanTests(unittest.TestCase):
         ])
 
         options = [
-            'python',
+            self.python_path,
             self.predixcan_path,
-            '--predict',
-            '--hdf5s', get_full_path('tests/data/dosages/'),
-            '--hdf5s-prefix', 'dosages_chr1_',
-            '--weights', model_path,
-            '--pred_exp', output_file,
+            '--bgens-dir', get_full_path('tests/data/set00/'),
+            '--bgens-prefix', 'chr',
+            '--bgens-sample-file', get_full_path('tests/data/set00/impv1.sample'),
+            '--weights-file', model_path,
+            '--output-file', output_file,
         ]
 
         return_code = call(options)
@@ -201,8 +202,8 @@ class PrediXcanTests(unittest.TestCase):
             assert all(samples[:].astype(str) == np.array([str(x) for x in range(1, 300 + 1)]))
 
             assert 'genes' in hdf5_file.keys()
-            genes = hdf5_file['genes']
-            assert genes.shape == (2,)
+            assert hdf5_file['genes'].shape == (2,)
+            genes = [x.decode() for x in hdf5_file['genes']]
             assert genes[0] == 'gene00'
             assert genes[1] == 'gene01'
 
@@ -214,8 +215,8 @@ class PrediXcanTests(unittest.TestCase):
             # gene00
             assert truncate(preds[0, 0]) == truncate(
                 0.3712 * (2 - np.dot([0.74909, 0.01333, 0.23758], [0, 1, 2])) +
-                0.0807 * (np.dot([0.75232, 0.11729, 0.13040], [0, 1, 2]))
-            ) == 0.5915, preds[0, 0]
+                0.0807 * (np.dot([0.75232, 0.11749, 0.13040], [0, 1, 2]))
+            ) == 0.5916, preds[0, 0]
 
             assert truncate(preds[0, 299]) == truncate(
                 0.3712 * (2 - np.dot([0.05763, 0.77328, 0.16910], [0, 1, 2])) +
@@ -228,8 +229,8 @@ class PrediXcanTests(unittest.TestCase):
             ) == 0.5571, preds[1, 0]
 
             assert truncate(preds[1, 298]) == truncate(
-                0.6188 * (np.dot([0.03509, 0.82783, 0.13705], [0, 1, 2]))
-            ) == 0.6818, preds[1, 298]
+                0.6188 * (np.dot([0.03509, 0.82789, 0.13705], [0, 1, 2]))
+            ) == 0.6819, preds[1, 298]
 
     def test_chunks(self):
         # Prepare
@@ -260,13 +261,13 @@ class PrediXcanTests(unittest.TestCase):
         )
 
         options = [
-            'python',
+            self.python_path,
             self.predixcan_path,
-            '--predict',
-            '--hdf5s', get_full_path('tests/data/dosages/'),
-            '--hdf5s-prefix', 'dosages_chr1_',
-            '--weights', model_path,
-            '--pred_exp', output_file,
+            '--bgens-dir', get_full_path('tests/data/set00/'),
+            '--bgens-prefix', 'chr',
+            '--bgens-sample-file', get_full_path('tests/data/set00/impv1.sample'),
+            '--weights-file', model_path,
+            '--output-file', output_file,
         ]
 
         return_code = call(options)
@@ -282,8 +283,8 @@ class PrediXcanTests(unittest.TestCase):
             assert all(samples[:].astype(str) == np.array([str(x) for x in range(1, 300 + 1)]))
 
             assert 'genes' in hdf5_file.keys()
-            genes = hdf5_file['genes']
-            assert genes.shape == (22,)
+            assert hdf5_file['genes'].shape == (22,)
+            genes = [x.decode() for x in hdf5_file['genes']]
             assert genes[0] == 'gene00'
             assert genes[1] == 'gene01'
             assert genes[20] == 'gene20'
@@ -313,8 +314,8 @@ class PrediXcanTests(unittest.TestCase):
 
             assert truncate(preds[1, 1]) == truncate(
                 0.5455 * (2 - np.dot([0.91510, 0.06826, 0.01669], [0, 1, 2])) +
-                0.5455 * (np.dot([0.70937, 0.04886, 0.24177], [0, 1, 2]))
-            ) == 1.3259, preds[1, 1]
+                0.5455 * (np.dot([0.70937, 0.04896, 0.24177], [0, 1, 2]))
+            ) == 1.3260, preds[1, 1]
 
             # gene09
             assert truncate(preds[9, 0]) == truncate(
@@ -324,8 +325,8 @@ class PrediXcanTests(unittest.TestCase):
 
             assert truncate(preds[9, 298]) == truncate(
                 0.9876 * (2 - np.dot([0.71102, 0.00968, 0.27929], [0, 1, 2])) +
-                0.9876 * (2 - np.dot([0.08631, 0.77285, 0.14089], [0, 1, 2]))
-            ) == 2.3476, preds[9, 298]
+                0.9876 * (2 - np.dot([0.08631, 0.77275, 0.14089], [0, 1, 2]))
+            ) == 2.3477, preds[9, 298]
 
             # gene10
             assert truncate(preds[10, 0]) == truncate(
@@ -341,8 +342,8 @@ class PrediXcanTests(unittest.TestCase):
             # gene11
             assert truncate(preds[11, 0]) == truncate(
                 0.2754 * (np.dot([0.83211, 0.12816, 0.03970], [0, 1, 2])) +
-                0.2754 * (np.dot([0.96441, 0.02567, 0.00990], [0, 1, 2]))
-            ) == 0.0696, preds[11, 0]
+                0.2754 * (np.dot([0.96441, 0.02577, 0.00990], [0, 1, 2]))
+            ) == 0.0697, preds[11, 0]
 
             assert truncate(preds[11, 299]) == truncate(
                 0.2754 * (np.dot([0.04018, 0.84357, 0.11625], [0, 1, 2])) +
