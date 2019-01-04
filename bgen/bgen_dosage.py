@@ -1,7 +1,13 @@
 import sqlite3
+import gc
 
 import numpy as np
-from bgen_reader import read_bgen, allele_expectation
+import pandas as pd
+
+from rpy2.robjects.vectors import StrVector
+from rpy2.robjects.packages import importr
+from rpy2.robjects import pandas2ri
+pandas2ri.activate()
 
 
 class BGENDosage:
@@ -11,7 +17,7 @@ class BGENDosage:
         self.sample_path = sample_path
         self.cache_size = cache_size
 
-        self.bgen_obj = read_bgen(self.bgen_path, sample_file=self.sample_path, size=self.cache_size, verbose=verbose)
+        self.rbgen = importr('rbgen')
 
         with sqlite3.connect(self.bgi_path) as conn:
             self.variants_count = conn.execute('select count(*) from Variant').fetchone()[0]
@@ -20,17 +26,24 @@ class BGENDosage:
             self.chr_number = conn.execute('select distinct chromosome from Variant').fetchone()[0]
 
     def get_row(self, row_idx):
-        row_number = (row_idx if row_idx >= 0 else self.variants_count + row_idx,)
+        row_number = (row_idx if row_idx >= 0 else self.variants_count + row_idx, )
 
-        dosage_row = self.bgen_obj['variants'].iloc[row_number].rename({'chrom': 'chr', 'pos': 'position'})
+        with sqlite3.connect(self.bgi_path) as conn:
+            variant_position = conn.execute('select position from Variant order by position limit 1 offset ?', row_number).fetchone()[0]
+
+        ranges = pd.DataFrame({
+            'chromosome': [self.chr_number],
+            'start': [variant_position],
+            'end': [variant_position],
+        })
+
+        data = self.rbgen.bgen_load(self.bgen_path, ranges)
+        variant = pandas2ri.ri2py(data[0])
+        probs = pandas2ri.ri2py(data[4])
+
+        dosage_row = variant.iloc[0].rename({'chromosome': 'chr'})
         dosage_row['chr'] = int(dosage_row.chr)
-
-        alleles = dosage_row.allele_ids.split(',')
-        dosage_row['allele0'] = alleles[0]
-        dosage_row['allele1'] = alleles[1]
-
-        e = allele_expectation(self.bgen_obj["genotype"][row_number], nalleles=2, ploidy=2)
-        dosage_row['dosages'] = e[..., -1].compute()  # count alt allele
+        dosage_row['dosages'] = np.dot(probs[0, :, :], [0, 1, 2])
 
         return dosage_row
 
@@ -50,30 +63,53 @@ class BGENDosage:
         :param n_rows_cached:
         :return:
         """
+        # retrieve positions
+        if include_rsid is not None:
+            stm = 'select distinct position from Variant where rsid in ({}) order by file_start_position asc'.format(', '.join(["'{}'".format(x) for x in include_rsid]))
+        else:
+            stm = 'select distinct position from Variant order by file_start_position asc'
 
-        variants_thin = self.bgen_obj['variants']
-        if include_rsid is not None and len(include_rsid) > 0:
-            cond = variants_thin['rsid'].isin(include_rsid)
-            variants_thin = variants_thin[cond]
+        with sqlite3.connect(self.bgi_path) as conn:
+            cur = conn.cursor()
+            cur.execute(stm)
 
-        row_numbers_chunks = self._chunker(variants_thin.index.tolist(), n_rows_cached)
+            iteration = 1
 
-        for chunk in row_numbers_chunks:
-            chunk_variants = variants_thin.loc[chunk]
-            alleles = chunk_variants['allele_ids'].str.split(',', n=1, expand=True)
-            chunk_variants = chunk_variants.assign(allele0=alleles[0])
-            chunk_variants = chunk_variants.assign(allele1=alleles[1])
-            chunk_variants = chunk_variants.drop(columns=['allele_ids'])
+            while True:
+                positions = cur.fetchmany(size=n_rows_cached)
+                if not positions:
+                    break
 
-            #chunk_expectations = allele_expectation(self.bgen_obj["genotype"][chunk], nalleles=2, ploidy=2)
-            #check_dosages = chunk_expectations[..., -1].compute()
-            check_dosages = np.dot(self.bgen_obj['genotype'][chunk].compute(), [0,1,2])
+                positions = [x[0] for x in positions]
 
-            for idx in range(len(chunk)):
-                variant_info = chunk_variants.iloc[idx]
-                dosage_row = variant_info.rename({'chrom': 'chr', 'pos': 'position'})
-                dosage_row['chr'] = int(dosage_row.chr)
+                if include_rsid is None:
+                    ranges = pd.DataFrame({
+                        'chromosome': [self.chr_number],
+                        'start': [positions[0]],
+                        'end': [positions[-1]],
+                    })
 
-                dosage_row['dosages'] = check_dosages[idx]
+                    # rbgen = importr('rbgen')
+                    cached_data = self.rbgen.bgen_load(self.bgen_path, ranges)
 
-                yield dosage_row
+                else:
+                    cached_data = self.rbgen.bgen_load(self.bgen_path, rsids=StrVector(include_rsid))
+
+                all_variants = pandas2ri.ri2py(cached_data[0])
+                all_probs = pandas2ri.ri2py(cached_data[4])
+
+                for row_idx, (rsid, row) in enumerate(all_variants.iterrows()):
+                    dosage_row = row.rename({'chromosome': 'chr'})
+                    dosage_row['chr'] = int(dosage_row.chr)
+                    dosage_row['dosages'] = np.dot(all_probs[row_idx, :, :], [0, 1, 2])
+
+                    yield dosage_row
+
+                cached_data_struct = cached_data.__sexp__
+                del(cached_data)
+                del(cached_data_struct)
+
+                if iteration % 100:
+                    gc.collect()
+
+                iteration += 1

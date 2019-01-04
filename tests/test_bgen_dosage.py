@@ -267,8 +267,8 @@ class BGENDosageTest(unittest.TestCase):
         all_items = list(bgen_dosage.items(n_rows_cached=15))
         assert len(all_items) == 13
 
-        idx0 = 0
-        idx1 = 1
+        idx0 = 1
+        idx1 = 0
 
         # snp 1
         assert all_items[idx0].chr == 2
