@@ -147,21 +147,17 @@ class TranscriptionMatrix:
 
 
 def get_all_dosages_from_bgen(bgen_dir, bgen_prefix, rsids, args):
-    for chrfile in [x for x in sorted(os.listdir(bgen_dir)) if x.startswith(bgen_prefix) and x.endswith(".bgen")]:
+    bgen_files = [x for x in sorted(os.listdir(bgen_dir)) if x.startswith(bgen_prefix) and x.endswith(".bgen")]
+    for idx, chrfile in enumerate(bgen_files):
         print("{} Processing {}".format(datetime.datetime.now(), chrfile))
 
         bgen_dosage = BGENDosage(os.path.join(bgen_dir, chrfile), sample_path=args.bgens_sample_file)
+        
+        if idx > 0:
+            gc.collect()
 
         for variant_info in bgen_dosage.items(n_rows_cached=args.bgens_n_cache, include_rsid=rsids):
-            # arr = line.decode('utf-8').strip().split()
-            # rsid = arr[1]
-            # refallele = arr[4]
-            # dosage_row = np.array(arr[6:], dtype=np.float64)
             yield variant_info.rsid, variant_info.allele1, variant_info.dosages
-            # yield rsid, refallele, dosage_row
-
-        del bgen_dosage
-        gc.collect()
 
 
 if __name__ == '__main__':
@@ -174,7 +170,6 @@ if __name__ == '__main__':
     parser.add_argument('--bgens-n-cache', type=int, default=100, help="Number of variants to process at a time.")
     parser.add_argument('--bgens-writing-cache-size', type=int, default=50, help="BGEN reading cache size in MB.")
     parser.add_argument('--no-progress-bar', action="store_true", help="Disable progress bar")
-    parser.add_argument('--verbose', action="store_true", help="Verbose on BGEN reading")
 
     args = parser.parse_args()
 
