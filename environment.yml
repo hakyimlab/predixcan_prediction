@@ -1,9 +1,10 @@
-name: predixcan_prediction
+name: predixcan_predictions
 channels:
   - conda-forge
   - defaults
 dependencies:
-  - bgen=2.1
+  - bgen=2.1.0
+  - cffi=1.11
   - dask=1.0
   - h5py=2.9
   - ipython=7.2
@@ -15,5 +16,5 @@ dependencies:
   - tqdm=4.28
   - xarray=0.11
   - pip:
-    - bgen-reader>=2.0
-    - h5py-cache>=1.0
+    - bgen-reader==2.0.8
+    - h5py-cache==1.0.0
