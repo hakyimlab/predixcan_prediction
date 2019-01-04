@@ -185,7 +185,7 @@ if __name__ == '__main__':
     unique_rsids = UniqueRsid(args.weights_file)()
     all_dosages = get_all_dosages_from_bgen(args.bgens_dir, args.bgens_prefix, unique_rsids, args)
 
-    for rsid, allele, dosage_row in tqdm(all_dosages, disable=args.no_progress_bar):
+    for rsid, allele, dosage_row in tqdm(all_dosages, total=len(unique_rsids), disable=args.no_progress_bar):
         for gene, weight, ref_allele in get_applications_of(rsid):
             transcription_matrix.update(gene, weight, ref_allele, allele, dosage_row)
 
