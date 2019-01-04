@@ -1,2 +1,5 @@
 syntax: glob
 tests/data/**/*.bgen.metadata
+.idea/
+__pycache__/
+tests/data/models/*.db

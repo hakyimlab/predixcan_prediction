@@ -1,16 +1,17 @@
 import sqlite3
 
+import numpy as np
 from bgen_reader import read_bgen, allele_expectation
 
 
 class BGENDosage:
-    def __init__(self, bgen_path, sample_path=None, cache_size=50):
+    def __init__(self, bgen_path, sample_path=None, cache_size=50, verbose=False):
         self.bgen_path = bgen_path
         self.bgi_path = self.bgen_path + '.bgi'
         self.sample_path = sample_path
         self.cache_size = cache_size
 
-        self.bgen_obj = read_bgen(self.bgen_path, sample_file=self.sample_path, size=self.cache_size, verbose=True)
+        self.bgen_obj = read_bgen(self.bgen_path, sample_file=self.sample_path, size=self.cache_size, verbose=verbose)
 
         with sqlite3.connect(self.bgi_path) as conn:
             self.variants_count = conn.execute('select count(*) from Variant').fetchone()[0]

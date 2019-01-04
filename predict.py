@@ -146,15 +146,16 @@ class TranscriptionMatrix:
             sys.exit(1)
 
 
-def get_all_dosages_from_bgen(bgen_dir, bgen_prefix, rsids, n_rows_cached=1000):
+def get_all_dosages_from_bgen(bgen_dir, bgen_prefix, rsids, args):
     for chrfile in [x for x in sorted(os.listdir(bgen_dir)) if x.startswith(bgen_prefix) and x.endswith(".bgen")]:
         print("{} Processing {}".format(datetime.datetime.now(), chrfile))
 
         print('  Creating BGENDosage')
-        bgen_dosage = BGENDosage(os.path.join(bgen_dir, chrfile))
+        bgen_dosage = BGENDosage(os.path.join(bgen_dir, chrfile), sample_path=args.bgens_sample_file,
+                                 cache_size=args.bgens_reading_cache_size, verbose=args.verbose)
 
         print('  Iterating')
-        for variant_info in bgen_dosage.items(n_rows_cached=n_rows_cached, include_rsid=rsids):
+        for variant_info in bgen_dosage.items(n_rows_cached=args.bgens_n_cache, include_rsid=rsids):
             # arr = line.decode('utf-8').strip().split()
             # rsid = arr[1]
             # refallele = arr[4]
@@ -177,7 +178,9 @@ if __name__ == '__main__':
     parser.add_argument('--bgens-prefix', default='', help="Prefix of filenames of BGEN files.")
     parser.add_argument('--bgens-sample-file', required=True, help="BGEN sample file.")
     parser.add_argument('--bgens-n-cache', type=int, default=100, help="Number of variants to process at a time.")
+    parser.add_argument('--bgens-reading-cache-size', type=int, default=50, help="BGEN reading cache size.")
     parser.add_argument('--no-progress-bar', action="store_true", help="Disable progress bar")
+    parser.add_argument('--verbose', action="store_true", help="Verbose on BGEN reading")
 
     args = parser.parse_args()
 
@@ -186,7 +189,7 @@ if __name__ == '__main__':
     transcription_matrix = TranscriptionMatrix(args.weights_file, args.bgens_sample_file, args.output_file)
 
     unique_rsids = UniqueRsid(args.weights_file)()
-    all_dosages = get_all_dosages_from_bgen(args.bgens_dir, args.bgens_prefix, unique_rsids, n_rows_cached=args.bgens_n_cache)
+    all_dosages = get_all_dosages_from_bgen(args.bgens_dir, args.bgens_prefix, unique_rsids, args)
 
     for rsid, allele, dosage_row in tqdm(all_dosages, disable=args.no_progress_bar):
         for gene, weight, ref_allele in get_applications_of(rsid):
