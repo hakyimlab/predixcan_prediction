@@ -7,7 +7,7 @@ import datetime
 from collections import defaultdict
 
 import numpy as np
-import h5py
+import h5py_cache
 from tqdm import tqdm
 
 from bgen.bgen_dosage import BGENDosage
@@ -72,7 +72,7 @@ class TranscriptionMatrix:
         self.D = None
         self.beta_file = beta_file
         self.bgen_sample_file = bgen_sample_file
-        self.cache_size = cache_size
+        self.cache_size = int(cache_size)
 
         if not any(output_binary_file.lower().endswith(hdf5_suffix) for hdf5_suffix in ('.h5', '.hdf5')):
             self.output_binary_file = output_binary_file + '.h5'
@@ -92,7 +92,7 @@ class TranscriptionMatrix:
             self.n_genes = len(self.gene_list)
             self.n_samples = len(dosage_row)
 
-            self.D_file = h5py.File(self.output_binary_file, 'w')
+            self.D_file = h5py_cache.File(self.output_binary_file, 'w', chunk_cache_mem_size=self.cache_size)
             n_genes_chunk = np.min((self.n_genes, 10))
             self.D = self.D_file.create_dataset("pred_expr", shape=(self.n_genes, self.n_samples),
                                                 chunks=(n_genes_chunk, self.n_samples),
@@ -150,11 +150,8 @@ def get_all_dosages_from_bgen(bgen_dir, bgen_prefix, rsids, args):
     for chrfile in [x for x in sorted(os.listdir(bgen_dir)) if x.startswith(bgen_prefix) and x.endswith(".bgen")]:
         print("{} Processing {}".format(datetime.datetime.now(), chrfile))
 
-        print('  Creating BGENDosage')
-        bgen_dosage = BGENDosage(os.path.join(bgen_dir, chrfile), sample_path=args.bgens_sample_file,
-                                 cache_size=args.bgens_reading_cache_size, verbose=args.verbose)
+        bgen_dosage = BGENDosage(os.path.join(bgen_dir, chrfile), sample_path=args.bgens_sample_file)
 
-        print('  Iterating')
         for variant_info in bgen_dosage.items(n_rows_cached=args.bgens_n_cache, include_rsid=rsids):
             # arr = line.decode('utf-8').strip().split()
             # rsid = arr[1]
@@ -165,9 +162,6 @@ def get_all_dosages_from_bgen(bgen_dir, bgen_prefix, rsids, args):
 
         del bgen_dosage
         gc.collect()
-        print('.', end='')
-
-    print()
 
 
 if __name__ == '__main__':
@@ -178,7 +172,7 @@ if __name__ == '__main__':
     parser.add_argument('--bgens-prefix', default='', help="Prefix of filenames of BGEN files.")
     parser.add_argument('--bgens-sample-file', required=True, help="BGEN sample file.")
     parser.add_argument('--bgens-n-cache', type=int, default=100, help="Number of variants to process at a time.")
-    parser.add_argument('--bgens-reading-cache-size', type=int, default=50, help="BGEN reading cache size.")
+    parser.add_argument('--bgens-writing-cache-size', type=int, default=50, help="BGEN reading cache size in MB.")
     parser.add_argument('--no-progress-bar', action="store_true", help="Disable progress bar")
     parser.add_argument('--verbose', action="store_true", help="Verbose on BGEN reading")
 
@@ -186,7 +180,7 @@ if __name__ == '__main__':
 
     check_out_file(args.output_file)
     get_applications_of = GetApplicationsOf(args.weights_file, True)
-    transcription_matrix = TranscriptionMatrix(args.weights_file, args.bgens_sample_file, args.output_file)
+    transcription_matrix = TranscriptionMatrix(args.weights_file, args.bgens_sample_file, args.output_file, cache_size=(args.bgens_writing_cache_size * (1024 ** 2)))
 
     unique_rsids = UniqueRsid(args.weights_file)()
     all_dosages = get_all_dosages_from_bgen(args.bgens_dir, args.bgens_prefix, unique_rsids, args)
