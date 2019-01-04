@@ -1,12 +1,13 @@
 import os
 import sys
+import gc
 import argparse
 import sqlite3
 import datetime
 from collections import defaultdict
 
 import numpy as np
-import h5py_cache
+import h5py
 from tqdm import tqdm
 
 from bgen.bgen_dosage import BGENDosage
@@ -91,7 +92,7 @@ class TranscriptionMatrix:
             self.n_genes = len(self.gene_list)
             self.n_samples = len(dosage_row)
 
-            self.D_file = h5py_cache.File(self.output_binary_file, 'w', chunk_cache_mem_size=self.cache_size)
+            self.D_file = h5py.File(self.output_binary_file, 'w')
             n_genes_chunk = np.min((self.n_genes, 10))
             self.D = self.D_file.create_dataset("pred_expr", shape=(self.n_genes, self.n_samples),
                                                 chunks=(n_genes_chunk, self.n_samples),
@@ -149,8 +150,10 @@ def get_all_dosages_from_bgen(bgen_dir, bgen_prefix, rsids, n_rows_cached=1000):
     for chrfile in [x for x in sorted(os.listdir(bgen_dir)) if x.startswith(bgen_prefix) and x.endswith(".bgen")]:
         print("{} Processing {}".format(datetime.datetime.now(), chrfile))
 
+        print('  Creating BGENDosage')
         bgen_dosage = BGENDosage(os.path.join(bgen_dir, chrfile))
 
+        print('  Iterating')
         for variant_info in bgen_dosage.items(n_rows_cached=n_rows_cached, include_rsid=rsids):
             # arr = line.decode('utf-8').strip().split()
             # rsid = arr[1]
@@ -158,6 +161,12 @@ def get_all_dosages_from_bgen(bgen_dir, bgen_prefix, rsids, n_rows_cached=1000):
             # dosage_row = np.array(arr[6:], dtype=np.float64)
             yield variant_info.rsid, variant_info.allele1, variant_info.dosages
             # yield rsid, refallele, dosage_row
+
+        del bgen_dosage
+        gc.collect()
+        print('.', end='')
+
+    print()
 
 
 if __name__ == '__main__':
