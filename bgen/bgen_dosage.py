@@ -10,7 +10,7 @@ class BGENDosage:
         self.sample_path = sample_path
         self.cache_size = cache_size
 
-        self.bgen_obj = read_bgen(self.bgen_path, sample_file=self.sample_path, size=self.cache_size, verbose=False)
+        self.bgen_obj = read_bgen(self.bgen_path, sample_file=self.sample_path, size=self.cache_size, verbose=True)
 
         with sqlite3.connect(self.bgi_path) as conn:
             self.variants_count = conn.execute('select count(*) from Variant').fetchone()[0]
@@ -64,8 +64,9 @@ class BGENDosage:
             chunk_variants = chunk_variants.assign(allele1=alleles[1])
             chunk_variants = chunk_variants.drop(columns=['allele_ids'])
 
-            chunk_expectations = allele_expectation(self.bgen_obj["genotype"][chunk], nalleles=2, ploidy=2)
-            check_dosages = chunk_expectations[..., -1].compute()
+            #chunk_expectations = allele_expectation(self.bgen_obj["genotype"][chunk], nalleles=2, ploidy=2)
+            #check_dosages = chunk_expectations[..., -1].compute()
+            check_dosages = np.dot(self.bgen_obj['genotype'][chunk].compute(), [0,1,2])
 
             for idx in range(len(chunk)):
                 variant_info = chunk_variants.iloc[idx]
