@@ -64,9 +64,9 @@ class BGENDosage:
         """
         # retrieve positions
         if include_rsid is not None:
-            stm = 'select distinct position from Variant where rsid in ({}) order by file_start_position asc'.format(', '.join(["'{}'".format(x) for x in include_rsid]))
+            stm = 'select distinct rsid, position from Variant where rsid in ({}) order by file_start_position asc'.format(', '.join(["'{}'".format(x) for x in include_rsid]))
         else:
-            stm = 'select distinct position from Variant order by file_start_position asc'
+            stm = 'select distinct rsid, position from Variant order by file_start_position asc'
 
         with sqlite3.connect(self.bgi_path) as conn:
             cur = conn.cursor()
@@ -79,7 +79,8 @@ class BGENDosage:
                 if not positions:
                     break
 
-                positions = [x[0] for x in positions]
+                rsids = [x[0] for x in positions]
+                positions = [x[1] for x in positions]
 
                 if include_rsid is None:
                     ranges = pd.DataFrame({
@@ -92,7 +93,7 @@ class BGENDosage:
                     cached_data = self.rbgen.bgen_load(self.bgen_path, ranges)
 
                 else:
-                    cached_data = self.rbgen.bgen_load(self.bgen_path, rsids=StrVector(include_rsid))
+                    cached_data = self.rbgen.bgen_load(self.bgen_path, rsids=StrVector(rsids))
 
                 all_variants = pandas2ri.ri2py(cached_data[0])
                 all_probs = pandas2ri.ri2py(cached_data[4])
