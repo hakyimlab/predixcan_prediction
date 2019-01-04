@@ -15,5 +15,5 @@ dependencies:
   - tqdm=4.28
   - xarray=0.11
   - pip:
-    - bgen-reader==2.0
-    - h5py-cache==1.0
+    - bgen-reader>=2.0
+    - h5py-cache>=1.0
