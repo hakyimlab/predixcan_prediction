@@ -9,7 +9,7 @@ parallel -j3 \
   --bgens-sample-file /mnt/ukb_v3/link_files/ukb19526_imp_chr1_v3_s487395.sample \
   --weights-file {} \
   --output-file prediction_output/{/.}.h5 \
-  --bgens-n-cache 500 \
+  --bgens-n-cache 250 \
   --bgens-writing-cache-size 500' \
   ::: /mnt/software/gtex_v8_models/*.db
 
