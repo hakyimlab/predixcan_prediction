@@ -151,10 +151,11 @@ def get_all_dosages_from_bgen(bgen_dir, bgen_prefix, rsids, args):
     for idx, chrfile in enumerate(bgen_files):
         print("{} Processing {}".format(datetime.datetime.now(), chrfile))
 
-        bgen_dosage = BGENDosage(os.path.join(bgen_dir, chrfile), sample_path=args.bgens_sample_file)
-        
         if idx > 0:
+            del bgen_dosage
             gc.collect()
+
+        bgen_dosage = BGENDosage(os.path.join(bgen_dir, chrfile), sample_path=args.bgens_sample_file)
 
         for variant_info in bgen_dosage.items(n_rows_cached=args.bgens_n_cache, include_rsid=rsids):
             yield variant_info.rsid, variant_info.allele1, variant_info.dosages

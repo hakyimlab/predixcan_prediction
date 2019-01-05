@@ -72,9 +72,15 @@ class BGENDosage:
             cur = conn.cursor()
             cur.execute(stm)
 
-            iteration = 1
+            iteration = 0
 
             while True:
+                if iteration > 0:
+                    cached_data_struct = cached_data.__sexp__
+                    del cached_data
+                    del cached_data_struct
+                    gc.collect()
+
                 positions = cur.fetchmany(size=n_rows_cached)
                 if not positions:
                     break
@@ -98,18 +104,11 @@ class BGENDosage:
                 all_variants = pandas2ri.ri2py(cached_data[0])
                 all_probs = pandas2ri.ri2py(cached_data[4])
 
+                iteration += 1
+
                 for row_idx, (rsid, row) in enumerate(all_variants.iterrows()):
                     dosage_row = row.rename({'chromosome': 'chr'})
                     dosage_row['chr'] = int(dosage_row.chr)
                     dosage_row['dosages'] = np.dot(all_probs[row_idx, :, :], [0, 1, 2])
 
                     yield dosage_row
-
-                cached_data_struct = cached_data.__sexp__
-                del(cached_data)
-                del(cached_data_struct)
-
-                if iteration % 100:
-                    gc.collect()
-
-                iteration += 1
