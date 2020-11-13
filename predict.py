@@ -84,7 +84,7 @@ class TranscriptionMatrix:
     def get_gene_list(self):
         return [tup[0] for tup in WeightsDB(self.beta_file).query("SELECT DISTINCT gene FROM weights ORDER BY gene")]
 
-    def update(self, gene, weight, ref_allele, allele, dosage_row):
+    def update(self, gene, weight, ref_allele, allele, dosage_row, max_gene_chunk_size, max_sample_chunk_size):
         if self.D is None:
             self.gene_list = self.get_gene_list()
             self.gene_index = {gene: k for (k, gene) in enumerate(self.gene_list)}
@@ -93,9 +93,14 @@ class TranscriptionMatrix:
             self.n_samples = len(dosage_row)
 
             self.D_file = h5py_cache.File(self.output_binary_file, 'w', chunk_cache_mem_size=self.cache_size)
-            n_genes_chunk = np.min((self.n_genes, 10))
+            n_genes_chunk = self.n_genes
+            n_samples_chunk = self.n_samples
+            if max_gene_chunk_size > 0:
+                n_genes_chunk = np.min((self.n_genes, max_gene_chunk_size))
+            if max_sample_chunk_size > 0:
+                n_samples_chunk = np.min((self.n_samples, max_sample_chunk_size))
             self.D = self.D_file.create_dataset("pred_expr", shape=(self.n_genes, self.n_samples),
-                                                chunks=(n_genes_chunk, self.n_samples),
+                                                chunks=(n_genes_chunk, n_samples_chunk),
                                                 dtype=np.dtype('float32'), scaleoffset=4, compression='gzip')
 
         if gene in self.gene_index:  # assumes dosage coding 0 to 2
@@ -147,15 +152,22 @@ class TranscriptionMatrix:
 
 
 def get_all_dosages_from_bgen(bgen_dir, bgen_prefix, rsids, args):
-    bgen_files = [x for x in sorted(os.listdir(bgen_dir)) if x.startswith(bgen_prefix) and x.endswith(".bgen")]
+    if args.autosomes is True:
+        if '{chr_num}' not in bgen_prefix:
+            print("--bgens-prefix should have {chr_num} if --autosomes are used")
+            sys.exit()
+        candidate_prefix = tuple([ bgen_prefix.format(chr_num = j) for j in range(1, 23) ])
+        bgen_files = [x for x in sorted(os.listdir(bgen_dir)) if x.startswith(candidate_prefix) and x.endswith(".bgen")]
+    else:
+        bgen_files = [x for x in sorted(os.listdir(bgen_dir)) if x.startswith(bgen_prefix) and x.endswith(".bgen")]
+
     for idx, chrfile in enumerate(bgen_files):
         print("{} Processing {}".format(datetime.datetime.now(), chrfile))
 
         if idx > 0:
             del bgen_dosage
             gc.collect()
-
-        bgen_dosage = BGENDosage(os.path.join(bgen_dir, chrfile), sample_path=args.bgens_sample_file)
+        bgen_dosage = BGENDosage(os.path.join(bgen_dir, chrfile), bgen_bgi=os.path.join(args.bgens_bgi_dir, chrfile), sample_path=args.bgens_sample_file)
 
         for variant_info in bgen_dosage.items(n_rows_cached=args.bgens_n_cache, include_rsid=rsids):
             yield variant_info.rsid, variant_info.allele1, variant_info.dosages
@@ -166,13 +178,20 @@ if __name__ == '__main__':
     parser.add_argument('--weights-file', required=True, help="SQLite database with rsid weights.")
     parser.add_argument('--output-file', required=True, help="Predicted expression file from earlier run of PrediXcan")
     parser.add_argument('--bgens-dir', required=True, help="Path to a directory of BGEN files.")
+    parser.add_argument('--bgens-bgi-dir', default=None, help="Path to a directory of BGEN BGI files (the filename should match the corresponding BGEN files).")
     parser.add_argument('--bgens-prefix', default='', help="Prefix of filenames of BGEN files.")
     parser.add_argument('--bgens-sample-file', required=True, help="BGEN sample file.")
     parser.add_argument('--bgens-n-cache', type=int, default=100, help="Number of variants to process at a time.")
     parser.add_argument('--bgens-writing-cache-size', type=int, default=50, help="BGEN reading cache size in MB.")
+    parser.add_argument('--max-sample-chunk-size', type=int, default=-1, help="Maximum number of chunks on sample axis (column). Set to -1 if do not want to use chunk. Default: -1")
+    parser.add_argument('--max-gene-chunk-size', type=int, default=10, help="Maximum number of chunks on gene axis (row). Set to -1 if do not want to use chunk. Default: 10")
     parser.add_argument('--no-progress-bar', action="store_true", help="Disable progress bar")
+    parser.add_argument('--autosomes', action="store_true", help="Use all autosomes 1..22. If set true, --bgens-prefix should contain {chr_num}")
 
     args = parser.parse_args()
+    
+    if args.bgens_bgi_dir is None:
+        args.bgens_bgi_dir = args.bgens_dir
 
     check_out_file(args.output_file)
     get_applications_of = GetApplicationsOf(args.weights_file, True)
@@ -180,9 +199,11 @@ if __name__ == '__main__':
 
     unique_rsids = UniqueRsid(args.weights_file)()
     all_dosages = get_all_dosages_from_bgen(args.bgens_dir, args.bgens_prefix, unique_rsids, args)
-
+    
     for rsid, allele, dosage_row in tqdm(all_dosages, total=len(unique_rsids), disable=args.no_progress_bar):
         for gene, weight, ref_allele in get_applications_of(rsid):
-            transcription_matrix.update(gene, weight, ref_allele, allele, dosage_row)
+            transcription_matrix.update(gene, weight, ref_allele, allele, dosage_row, args.max_gene_chunk_size, args.max_sample_chunk_size)
+
 
     transcription_matrix.save()
+
