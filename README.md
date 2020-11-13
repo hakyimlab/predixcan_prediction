@@ -19,3 +19,11 @@ See extra documentation of `rbgen` and `bgen` [here](https://bitbucket.org/gavin
 
 The script relies on `rbgen` which needs your BGEN files being indexed by `bgenix`. 
 See details [here](https://bitbucket.org/gavinband/bgen/wiki/bgenix).
+
+# See also
+
+The script was mainly developed by @miltondp and see the original GitHub repository for more details [https://github.com/miltondp/predixcan_prediction](https://github.com/miltondp/predixcan_prediction).
+There were some enhancements and functionalities added by @liangyy and see more details at [https://github.com/liangyy/predixcan_prediction](https://github.com/liangyy/predixcan_prediction).
+
+These repositories above are considered to be inactive.
+Please report bug and issue at the current respository.
