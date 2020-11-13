@@ -41,9 +41,15 @@ class UniqueRsid:
     def __init__(self, beta_file):
         self.db = WeightsDB(beta_file)
 
-    def __call__(self):
+    def __call__(self, desired_gene_list=None):
         print("{} Getting unique rsids...".format(datetime.datetime.now()))
-        res = [x[0] for x in self.db.query("SELECT distinct rsid FROM weights")]
+        if desired_gene_list is None:
+            res = [x[0] for x in self.db.query("SELECT distinct rsid FROM weights")]
+        else:
+            query = "SELECT distinct rsid FROM weights where gene IN ({})".format(','.join(
+                [ '\"{}\"'.format(i) for i in desired_gene_list ]
+            ))
+            res = [x[0] for x in self.db.query(query)]
         return res
 
 
@@ -81,12 +87,21 @@ class TranscriptionMatrix:
 
         self.complements = {"A": "T", "C": "G", "G": "C", "T": "A"}
 
-    def get_gene_list(self):
-        return [tup[0] for tup in WeightsDB(self.beta_file).query("SELECT DISTINCT gene FROM weights ORDER BY gene")]
+    def get_gene_list(self, desired_gene_list=None):
+        gene_list = [tup[0] for tup in WeightsDB(self.beta_file).query("SELECT DISTINCT gene FROM weights ORDER BY gene")]
+        if desired_gene_list is None:
+            return gene_list
+        else:
+            new_list = []
+            desired_gene_list = set(desired_gene_list)
+            for i in gene_list:
+                if i in desired_gene_list:
+                    new_list.append(i)
+            return new_list
 
-    def update(self, gene, weight, ref_allele, allele, dosage_row, max_gene_chunk_size, max_sample_chunk_size):
+    def update(self, gene, weight, ref_allele, allele, dosage_row, max_gene_chunk_size, max_sample_chunk_size, desired_gene_list=None):
         if self.D is None:
-            self.gene_list = self.get_gene_list()
+            self.gene_list = self.get_gene_list(desired_gene_list)
             self.gene_index = {gene: k for (k, gene) in enumerate(self.gene_list)}
 
             self.n_genes = len(self.gene_list)
@@ -172,6 +187,15 @@ def get_all_dosages_from_bgen(bgen_dir, bgen_prefix, rsids, args):
         for variant_info in bgen_dosage.items(n_rows_cached=args.bgens_n_cache, include_rsid=rsids):
             yield variant_info.rsid, variant_info.allele1, variant_info.dosages
 
+def load_gene_list(gene_list):
+    if gene_list is None:
+        return None
+    out = []
+    with open(gene_list, 'r') as f:
+        lines = f.readlines()
+        for l in lines:
+            out.append(l.strip())
+    return out
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
@@ -187,6 +211,7 @@ if __name__ == '__main__':
     parser.add_argument('--max-gene-chunk-size', type=int, default=10, help="Maximum number of chunks on gene axis (row). Set to -1 if do not want to use chunk. Default: 10")
     parser.add_argument('--no-progress-bar', action="store_true", help="Disable progress bar")
     parser.add_argument('--autosomes', action="store_true", help="Use all autosomes 1..22. If set true, --bgens-prefix should contain {chr_num}")
+    parser.add_argument('--gene-list', default=None, help="a list of gene to work with (one gene per row without header)")
 
     args = parser.parse_args()
     
@@ -196,13 +221,22 @@ if __name__ == '__main__':
     check_out_file(args.output_file)
     get_applications_of = GetApplicationsOf(args.weights_file, True)
     transcription_matrix = TranscriptionMatrix(args.weights_file, args.bgens_sample_file, args.output_file, cache_size=(args.bgens_writing_cache_size * (1024 ** 2)))
+    
+    # load desired gene list
+    desired_gene_list = load_gene_list(args.gene_list)
+    
+    unique_rsids = UniqueRsid(args.weights_file)(desired_gene_list)
+    
+    if len(unique_rsids) == 0:
+        print('The genes in gene list do not appear in the predictdb. Exit!')
+        os.remove(args.output_file)
+        sys.exit()
 
-    unique_rsids = UniqueRsid(args.weights_file)()
     all_dosages = get_all_dosages_from_bgen(args.bgens_dir, args.bgens_prefix, unique_rsids, args)
     
     for rsid, allele, dosage_row in tqdm(all_dosages, total=len(unique_rsids), disable=args.no_progress_bar):
         for gene, weight, ref_allele in get_applications_of(rsid):
-            transcription_matrix.update(gene, weight, ref_allele, allele, dosage_row, args.max_gene_chunk_size, args.max_sample_chunk_size)
+            transcription_matrix.update(gene, weight, ref_allele, allele, dosage_row, args.max_gene_chunk_size, args.max_sample_chunk_size, desired_gene_list)
 
 
     transcription_matrix.save()
